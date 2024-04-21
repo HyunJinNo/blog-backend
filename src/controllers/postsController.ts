@@ -1,43 +1,55 @@
 import { Request, Response } from "express";
+import pool from "../db";
 
-let postId = 1; // id의 초깃값
-
-// posts 배열 초기 데이터
-const posts = [
-  {
-    id: 1,
-    title: "제목",
-    body: "내용",
-  },
-];
+type Post = {
+  title: string;
+  body: string;
+  tags: string[];
+};
 
 /**
  * 포스트 작성
  *
  * POST /api/posts
  *
- * { title, body }
+ * { title, body, tags }
  */
-export const write = (req: Request, res: Response) => {
-  // REST API의 Request Body는 req.body에서 조회할 수 있습니다..
-  const { title, body } = req.body;
-  postId++; // 기존 postId 값에 1을 더합니다.
+export const write = async (req: Request, res: Response) => {
+  // REST API의 Request Body는 req.body에서 조회할 수 있습니다.
+  const { title, body, tags }: Post = req.body;
 
-  const post = {
-    id: postId,
+  const post: Post = {
     title: title,
     body: body,
+    tags: tags,
   };
 
-  posts.push(post);
-  res.json(post);
+  try {
+    pool
+      .execute("insert into post (title, body, tags) values (?, ?, ?);", [
+        title,
+        body,
+        tags,
+      ])
+      .then(() => res.json(post));
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(500);
+  }
 };
 
 /* 포스트 목록 조회
 GET /api/posts
 */
-export const list = (req: Request, res: Response) => {
-  res.json(posts);
+export const list = async (req: Request, res: Response) => {
+  try {
+    pool
+      .execute("select * from post;")
+      .then(([queryResult]) => res.json(queryResult));
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(500);
+  }
 };
 
 /**
@@ -45,23 +57,23 @@ export const list = (req: Request, res: Response) => {
  *
  * GET /api/posts/:id
  */
-export const read = (req: Request, res: Response) => {
+export const read = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  // 주어진 id 값으로 포스트를 찾습니다..
-  // 파라미터로 받아 온 값은 문자열 형식이르모 파라미터를 숫자로 변환하거나
-  // 비교할 p.id 값을 문자열로 변경해야 합니다.
-  const post = posts.find((p) => p.id.toString() === id);
-
-  // 포스트가 없으면 오류를 반환합니다..
-  if (!post) {
-    res.status(404).json({
-      message: "포스트가 존재하지 않습니다.",
-    });
-    return;
+  try {
+    pool
+      .execute("select * from post where id = ?;", [Number(id)])
+      .then(([queryResult]: [any, any]) => {
+        if (queryResult.length === 0) {
+          res.sendStatus(404); // Not Found;
+        } else {
+          res.json(queryResult);
+        }
+      });
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(500);
   }
-
-  res.json(post);
 };
 
 /**
@@ -69,57 +81,17 @@ export const read = (req: Request, res: Response) => {
  *
  * DELETE /api/posts/:id
  */
-export const remove = (req: Request, res: Response) => {
+export const remove = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  // 해당 id를 가진 포스트가 몇 번째인지 확인합니다.
-  const index = posts.findIndex((p) => p.id.toString() === id);
-
-  // 포스트가 없으면 오류를 반환합니다.
-  if (index === -1) {
-    res.status(404).json({
-      message: "포스트가 존재하지 않습니다.",
-    });
-    return;
+  try {
+    pool
+      .execute("delete from post where id = ?;", [Number(id)])
+      .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(500);
   }
-
-  // index 번째 아이템을 제거합니다.
-  posts.splice(index, 1);
-  res.sendStatus(204); // No Content
-};
-
-/**
- * 포스트 수정(교체)
- *
- * PUT /api/posts/:id
- *
- * { title, body }
- */
-export const replace = (req: Request, res: Response) => {
-  // PUT 메서드는 전체 포스트 정보를 입력하여 데이터를 통째로 교체할 때 사용합니다.
-  const { id } = req.params;
-  const { title, body } = req.body;
-
-  // 해당 id를 가진 포스트가 몇 번째인지 확인합니다.
-  const index = posts.findIndex((p) => p.id.toString() === id);
-
-  // 포스트가 없으면 오류를 반환합니다.
-  if (index === -1) {
-    res.status(404).json({
-      message: "포스트가 존재하지 않습니다.",
-    });
-    return;
-  }
-
-  // 전체 객체를 덮어 씌웁니다.
-  // 따라서 id를 제외한 기존 정보를 날리고, 객체를 새로 만듭니다.
-  posts[index] = {
-    id: Number(id),
-    title: title,
-    body: body,
-  };
-
-  res.json(posts[index]);
 };
 
 /**
@@ -127,30 +99,27 @@ export const replace = (req: Request, res: Response) => {
  *
  * PATCH /api/posts/:id
  *
- * { title, body }
+ * { title, body, tags }
  */
-export const update = (req: Request, res: Response) => {
+export const update = async (req: Request, res: Response) => {
   // PATCH 메서드는 주어진 필드만 교체합니다.
   const { id } = req.params;
-  const { title, body }: { title?: string; body?: string } = req.body;
+  const { title, body, tags }: Partial<Post> = req.body;
 
-  // 해당 id를 가진 포스트가 몇 번째인지 확인합니다.
-  const index = posts.findIndex((p) => p.id.toString() === id);
+  try {
+    const [temp] = await pool.execute("select * from post where id = ?;", [id]);
+    const origin: Post = JSON.parse(JSON.stringify(temp))[0];
 
-  // 포스트가 없으면 오류를 반환합니다.
-  if (index === -1) {
-    res.status(404).json({
-      message: "포스트가 존재하지 않습니다.",
-    });
-    return;
+    pool
+      .execute("update post set title = ?, body = ?, tags = ? where id = ?;", [
+        title ?? origin.title,
+        body ?? origin.body,
+        tags ?? origin.tags,
+        Number(id),
+      ])
+      .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(500);
   }
-
-  // 기존 값에 정보를 덮어 씌웁니다.
-  posts[index] = {
-    ...posts[index],
-    title: title ?? posts[index].title,
-    body: body ?? posts[index].body,
-  };
-
-  res.json(posts[index]);
 };

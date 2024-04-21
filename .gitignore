@@ -5,3 +5,7 @@
 
 # unnecessary folders
 /views
+
+# local env files
+.env*.local
+.env
