@@ -1,11 +1,6 @@
-import { NextFunction, Request, Response } from "express";
-import pool from "../db";
-
-type Post = {
-  title: string;
-  body: string;
-  tags: string[];
-};
+import { Request, Response, NextFunction } from "express";
+import pool from "../db/db";
+import { Post } from "../models/Post";
 
 /**
  * ID 검증 미들웨어
@@ -20,8 +15,7 @@ export const checkId = (req: Request, res: Response, next: NextFunction) => {
       next();
     }
   } catch (e) {
-    console.log(e);
-    res.sendStatus(400).send("400 Bad Request");
+    res.sendStatus(400);
   }
 };
 
@@ -45,8 +39,7 @@ export const checkRequestBody = (
       throw Error("Type Mismatch");
     }
   } catch (e) {
-    console.log(e);
-    res.sendStatus(400).send("400 Bad Request"); // Bad Request
+    res.sendStatus(400); // Bad Request
   }
 };
 
@@ -76,7 +69,6 @@ export const write = async (req: Request, res: Response) => {
       )
       .then(() => res.json(post));
   } catch (e) {
-    console.log(e);
     res.sendStatus(500);
   }
 };
@@ -103,7 +95,6 @@ export const list = async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (e) {
-    console.log(e);
     res.sendStatus(500);
   }
 };
@@ -132,7 +123,6 @@ export const read = async (req: Request, res: Response) => {
     const lastPage: number = postCount[0]["count(id)"];
     res.setHeader("lastPage", lastPage).send(queryResult);
   } catch (e) {
-    console.log(e);
     res.sendStatus(500);
   }
 };
@@ -150,7 +140,6 @@ export const remove = async (req: Request, res: Response) => {
       .execute(`delete from post where id = ${id};`)
       .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
   } catch (e) {
-    console.log(e);
     res.sendStatus(500);
   }
 };
@@ -181,7 +170,6 @@ export const update = async (req: Request, res: Response) => {
       )
       .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
   } catch (e) {
-    console.log(e);
     res.sendStatus(500);
   }
 };
