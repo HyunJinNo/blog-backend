@@ -1,10 +1,53 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import pool from "../db";
 
 type Post = {
   title: string;
   body: string;
   tags: string[];
+};
+
+/**
+ * ID 검증 미들웨어
+ */
+export const checkId = (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  try {
+    const num = Number(id);
+    if (Number.isNaN(num)) {
+      throw new Error("Number Format Error");
+    } else {
+      next();
+    }
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(400).send("400 Bad Request");
+  }
+};
+
+/**
+ * Request Body 검증 미들웨어
+ */
+export const checkRequestBody = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { title, body, tags } = req.body;
+    if (
+      typeof title === "string" &&
+      typeof body === "string" &&
+      Array.isArray(tags)
+    ) {
+      next();
+    } else {
+      throw Error("Type Mismatch");
+    }
+  } catch (e) {
+    console.log(e);
+    res.sendStatus(400).send("400 Bad Request"); // Bad Request
+  }
 };
 
 /**
@@ -26,11 +69,11 @@ export const write = async (req: Request, res: Response) => {
 
   try {
     pool
-      .execute("insert into post (title, body, tags) values (?, ?, ?);", [
-        title,
-        body,
-        tags,
-      ])
+      .execute(
+        `insert into post (title, body, tags) values ("${title}", "${body}", '${JSON.stringify(
+          tags,
+        )}');`,
+      )
       .then(() => res.json(post));
   } catch (e) {
     console.log(e);
@@ -38,14 +81,27 @@ export const write = async (req: Request, res: Response) => {
   }
 };
 
-/* 포스트 목록 조회
-GET /api/posts
-*/
+/**
+ * 최신 포스트 목록 10개 조회
+ *
+ * GET /api/posts
+ */
 export const list = async (req: Request, res: Response) => {
+  const page = Number(req.query.page ?? 1); // 기본값: page = 1
+
   try {
-    pool
-      .execute("select * from post;")
-      .then(([queryResult]) => res.json(queryResult));
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      `select * from post order by id desc limit ${(page - 1) * 10}, 10;`,
+    );
+
+    // 최대 200자까지만 body 조회
+    const result = queryResult.map((post: Post) => ({
+      ...post,
+      body:
+        post.body.length < 200 ? post.body : `${post.body.slice(0, 200)}...`,
+    }));
+
+    res.json(result);
   } catch (e) {
     console.log(e);
     res.sendStatus(500);
@@ -61,15 +117,20 @@ export const read = async (req: Request, res: Response) => {
   const { id } = req.params;
 
   try {
-    pool
-      .execute("select * from post where id = ?;", [Number(id)])
-      .then(([queryResult]: [any, any]) => {
-        if (queryResult.length === 0) {
-          res.sendStatus(404); // Not Found;
-        } else {
-          res.json(queryResult);
-        }
-      });
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      `select * from post where id = ${id};`,
+    );
+
+    if (queryResult.length === 0) {
+      res.sendStatus(404); // Not Found;
+      return;
+    }
+
+    const [postCount]: [Array<any>, any] = await pool.execute(
+      `select count(id) from post;`,
+    );
+    const lastPage: number = postCount[0]["count(id)"];
+    res.setHeader("lastPage", lastPage).send(queryResult);
   } catch (e) {
     console.log(e);
     res.sendStatus(500);
@@ -86,7 +147,7 @@ export const remove = async (req: Request, res: Response) => {
 
   try {
     pool
-      .execute("delete from post where id = ?;", [Number(id)])
+      .execute(`delete from post where id = ${id};`)
       .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
   } catch (e) {
     console.log(e);
@@ -107,16 +168,17 @@ export const update = async (req: Request, res: Response) => {
   const { title, body, tags }: Partial<Post> = req.body;
 
   try {
-    const [temp] = await pool.execute("select * from post where id = ?;", [id]);
-    const origin: Post = JSON.parse(JSON.stringify(temp))[0];
+    const [temp]: [Array<any>, any] = await pool.execute(
+      `select * from post where id = ${id};`,
+    );
+    const origin: Post = temp[0];
 
     pool
-      .execute("update post set title = ?, body = ?, tags = ? where id = ?;", [
-        title ?? origin.title,
-        body ?? origin.body,
-        tags ?? origin.tags,
-        Number(id),
-      ])
+      .execute(
+        `update post set title = "${title ?? origin.title}", body = "${
+          body ?? origin.body
+        }", tags = '${JSON.stringify(tags ?? origin.tags)}' where id = ${id};`,
+      )
       .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
   } catch (e) {
     console.log(e);

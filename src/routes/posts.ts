@@ -1,5 +1,7 @@
 import express from "express";
 import {
+  checkId,
+  checkRequestBody,
   list,
   read,
   remove,
@@ -10,7 +12,7 @@ import {
 export const router = express.Router();
 
 router.get("/", list);
-router.post("/", write);
-router.get("/:id", read);
-router.delete("/:id", remove);
-router.patch("/:id", update);
+router.post("/", checkRequestBody, write);
+router.get("/:id", checkId, read);
+router.delete("/:id", checkId, remove);
+router.patch("/:id", checkId, update);
