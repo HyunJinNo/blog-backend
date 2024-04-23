@@ -65,8 +65,39 @@ export const register = async (req: Request, res: Response) => {
 
 /**
  * 로그인
+ *
+ * POST /api/auth/login
+ *
+ * { username, password }
  */
-export const login = async (req: Request, res: Response) => {};
+export const login = async (req: Request, res: Response) => {
+  const { username, password }: User = req.body;
+
+  try {
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      `select username, password from user where username = "${username}";`,
+    );
+
+    // 계정이 존재하지 않으면 에러 처리
+    if (queryResult.length === 0) {
+      throw Error("Unauthorized");
+    }
+
+    const valid = await bcrypt.compare(password, queryResult[0].password);
+
+    // 잘못된 비밀번호
+    if (!valid) {
+      throw Error("Unauthorized");
+    }
+
+    res.json({
+      username: username,
+      password: password,
+    });
+  } catch (e) {
+    res.sendStatus(401); // Unauthorized
+  }
+};
 
 /**
  * 로그인 상태 확인
