@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import pool from "../db/db";
 import bcrypt from "bcrypt";
-import { User } from "../models/User";
+import User from "../models/User";
+import { generateToken } from "../utils/utils";
 
 /**
  * Request Body 검증 미들웨어
@@ -57,7 +58,14 @@ export const register = async (req: Request, res: Response) => {
       .execute(
         `insert into user (username, password) values ("${username}", "${hashedPassword}");`,
       )
-      .then(() => res.json(user));
+      .then(() => {
+        const token = generateToken(username);
+        res.cookie("access_token", token, {
+          maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+          httpOnly: true, // 자바스크립트를 통해 쿠키를 조회하는 것을 방지함.
+        });
+        res.json(user);
+      });
   } catch (e) {
     res.sendStatus(500);
   }
@@ -90,6 +98,11 @@ export const login = async (req: Request, res: Response) => {
       throw Error("Unauthorized");
     }
 
+    const token = generateToken(username);
+    res.cookie("access_token", token, {
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+      httpOnly: true,
+    });
     res.json({
       username: username,
       password: password,
@@ -101,10 +114,27 @@ export const login = async (req: Request, res: Response) => {
 
 /**
  * 로그인 상태 확인
+ *
+ * GET /api/auth/check
  */
-export const check = async (req: Request, res: Response) => {};
+export const check = async (req: Request, res: Response) => {
+  const { user } = res.locals;
+
+  // 로그인 중이 아닌 경우
+  if (!user) {
+    res.sendStatus(401); // Unauthorized
+    return;
+  }
+  res.send(user);
+};
 
 /**
  * 로그아웃
+ *
+ * POST /api/auth/logout
  */
-export const logout = async (req: Request, res: Response) => {};
+export const logout = async (req: Request, res: Response) => {
+  // 쿠키 삭제
+  res.clearCookie("access_token");
+  res.sendStatus(204); // No content
+};

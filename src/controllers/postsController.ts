@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import pool from "../db/db";
-import { Post } from "../models/Post";
+import Post from "../models/Post";
 
 /**
  * ID 검증 미들웨어
