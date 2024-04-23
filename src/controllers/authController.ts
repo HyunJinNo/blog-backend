@@ -58,14 +58,7 @@ export const register = async (req: Request, res: Response) => {
       .execute(
         `insert into user (username, password) values ("${username}", "${hashedPassword}");`,
       )
-      .then(() => {
-        const token = generateToken(username);
-        res.cookie("access_token", token, {
-          maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
-          httpOnly: true, // 자바스크립트를 통해 쿠키를 조회하는 것을 방지함.
-        });
-        res.json(user);
-      });
+      .then(() => res.json(user));
   } catch (e) {
     res.sendStatus(500);
   }
@@ -83,7 +76,7 @@ export const login = async (req: Request, res: Response) => {
 
   try {
     const [queryResult]: [Array<any>, any] = await pool.execute(
-      `select username, password from user where username = "${username}";`,
+      `select id, username, password from user where username = "${username}";`,
     );
 
     // 계정이 존재하지 않으면 에러 처리
@@ -98,7 +91,7 @@ export const login = async (req: Request, res: Response) => {
       throw Error("Unauthorized");
     }
 
-    const token = generateToken(username);
+    const token = generateToken(queryResult[0].id, username);
     res.cookie("access_token", token, {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
       httpOnly: true,
@@ -118,7 +111,7 @@ export const login = async (req: Request, res: Response) => {
  * GET /api/auth/check
  */
 export const check = async (req: Request, res: Response) => {
-  const { user } = res.locals;
+  const user = res.locals.user;
 
   // 로그인 중이 아닌 경우
   if (!user) {

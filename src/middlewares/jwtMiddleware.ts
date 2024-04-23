@@ -15,17 +15,20 @@ const jwtMiddleware = (req: Request, res: Response, next: NextFunction) => {
     // 토큰의 남은 유효 기간이 3.5일 미만이면 재발급
     const now = Math.floor(Date.now() / 1000);
     if (res.locals.user.exp - now < 60 * 60 * 25 * 3.5) {
-      const newToken = generateToken(res.locals.user.username);
+      const newToken = generateToken(
+        res.locals.user.id,
+        res.locals.user.username,
+      );
       res.cookie("access_token", newToken, {
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
         httpOnly: true,
       });
     }
 
-    return next();
+    next();
   } catch (e) {
     // 토큰 검증 실패;
-    return next();
+    next();
   }
 };
 

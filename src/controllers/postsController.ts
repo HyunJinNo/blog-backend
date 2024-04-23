@@ -5,17 +5,35 @@ import Post from "../models/Post";
 /**
  * ID 검증 미들웨어
  */
-export const checkId = (req: Request, res: Response, next: NextFunction) => {
+export const getPostById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const { id } = req.params;
+
   try {
     const num = Number(id);
     if (Number.isNaN(num)) {
       throw new Error("Number Format Error");
-    } else {
-      next();
     }
   } catch (e) {
     res.sendStatus(400);
+    return;
+  }
+
+  try {
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      `select * from post where id = ${id}`,
+    );
+    if (queryResult.length === 0) {
+      throw Error("Not Found");
+    }
+
+    res.locals.post = queryResult[0];
+    next();
+  } catch (e) {
+    res.sendStatus(404); // Not Found
   }
 };
 
@@ -44,6 +62,22 @@ export const checkRequestBody = (
 };
 
 /**
+ * 로그인 중인 사용자가 작성한 포스트인지 확인하는 미들웨어
+ */
+export const checkOwnPost = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const { user, post } = res.locals;
+  if (user.id !== post.user_id) {
+    res.sendStatus(403); // Forbidden
+    return;
+  }
+  next();
+};
+
+/**
  * 포스트 작성
  *
  * POST /api/posts
@@ -58,14 +92,15 @@ export const write = async (req: Request, res: Response) => {
     title: title,
     body: body,
     tags: tags,
+    user_id: res.locals.user.id,
   };
 
   try {
     pool
       .execute(
-        `insert into post (title, body, tags) values ("${title}", "${body}", '${JSON.stringify(
+        `insert into post (title, body, tags, user_id) values ("${title}", "${body}", '${JSON.stringify(
           tags,
-        )}');`,
+        )}', ${post.user_id});`,
       )
       .then(() => res.json(post));
   } catch (e) {
@@ -81,6 +116,18 @@ export const write = async (req: Request, res: Response) => {
 export const list = async (req: Request, res: Response) => {
   const page = Number(req.query.page ?? 1); // 기본값: page = 1
 
+  // select p.id, p.title, p.body, p.tags, p.user_id, u.username from post as p left join user as u on p.user_id = u.id;
+  //const username = req.query.username ?? "";
+
+  // *********************************************
+  // TODO: const tag = req.query.tag ?? "";
+  // *********************************************
+
+  if (page < 1 || Number.isNaN(page)) {
+    res.sendStatus(400);
+    return;
+  }
+
   try {
     const [queryResult]: [Array<any>, any] = await pool.execute(
       `select * from post order by id desc limit ${(page - 1) * 10}, 10;`,
@@ -93,7 +140,12 @@ export const list = async (req: Request, res: Response) => {
         post.body.length < 200 ? post.body : `${post.body.slice(0, 200)}...`,
     }));
 
-    res.json(result);
+    const [postCount]: [Array<any>, any] = await pool.execute(
+      `select count(id) from post;`,
+    );
+    const lastPage: number = postCount[0]["count(id)"];
+
+    res.setHeader("lastPage", lastPage).json(result);
   } catch (e) {
     res.sendStatus(500);
   }
@@ -104,27 +156,8 @@ export const list = async (req: Request, res: Response) => {
  *
  * GET /api/posts/:id
  */
-export const read = async (req: Request, res: Response) => {
-  const { id } = req.params;
-
-  try {
-    const [queryResult]: [Array<any>, any] = await pool.execute(
-      `select * from post where id = ${id};`,
-    );
-
-    if (queryResult.length === 0) {
-      res.sendStatus(404); // Not Found;
-      return;
-    }
-
-    const [postCount]: [Array<any>, any] = await pool.execute(
-      `select count(id) from post;`,
-    );
-    const lastPage: number = postCount[0]["count(id)"];
-    res.setHeader("lastPage", lastPage).send(queryResult);
-  } catch (e) {
-    res.sendStatus(500);
-  }
+export const read = (req: Request, res: Response) => {
+  res.send(res.locals.post);
 };
 
 /**

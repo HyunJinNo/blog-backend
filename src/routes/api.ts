@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express from "express";
 import { router as postsRouter } from "./posts";
 import { router as authRouter } from "./auth";
 
