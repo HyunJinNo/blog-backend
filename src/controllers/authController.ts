@@ -50,7 +50,7 @@ export const register = async (req: Request, res: Response) => {
   const hashedPassword = await bcrypt.hash(password, 10);
   const user: User = {
     username: username,
-    password: hashedPassword,
+    password: password,
   };
 
   try {
