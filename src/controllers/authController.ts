@@ -43,8 +43,7 @@ export const register = async (req: Request, res: Response) => {
       throw Error("Duplicated username");
     }
   } catch (e) {
-    res.sendStatus(409); // Conflict
-    return;
+    return res.sendStatus(409); // Conflict
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -54,11 +53,20 @@ export const register = async (req: Request, res: Response) => {
   };
 
   try {
-    pool
-      .execute(
-        `insert into user (username, password) values ("${username}", "${hashedPassword}");`,
-      )
-      .then(() => res.json(user));
+    await pool.execute(
+      `insert into user (username, password) values ("${username}", "${hashedPassword}");`,
+    );
+
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      `select id, username, password from user where username = "${username}";`,
+    );
+
+    const token = generateToken(queryResult[0].id, username);
+    res.cookie("access_token", token, {
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7일
+      httpOnly: true,
+    });
+    res.json(user);
   } catch (e) {
     res.sendStatus(500);
   }
@@ -115,8 +123,7 @@ export const check = async (req: Request, res: Response) => {
 
   // 로그인 중이 아닌 경우
   if (!user) {
-    res.sendStatus(401); // Unauthorized
-    return;
+    return res.sendStatus(401); // Unauthorized
   }
   res.send(user);
 };
