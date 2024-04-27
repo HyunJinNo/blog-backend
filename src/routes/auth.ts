@@ -12,4 +12,4 @@ export const router = express.Router();
 router.post("/register", checkRequestBody, register);
 router.post("/login", checkRequestBody, login);
 router.get("/check", check);
-router.post("/logout", checkRequestBody, logout);
+router.post("/logout", logout);
