@@ -88,21 +88,18 @@ export const write = async (req: Request, res: Response) => {
   // REST API의 Request Body는 req.body에서 조회할 수 있습니다.
   const { title, body, tags }: Post = req.body;
 
-  const post: Post = {
-    title: title,
-    body: body,
-    tags: tags,
-    user_id: res.locals.user.id,
-  };
-
   try {
-    pool
-      .execute(
-        `insert into post (title, body, tags, user_id) values ("${title}", "${body}", '${JSON.stringify(
-          tags,
-        )}', ${post.user_id});`,
-      )
-      .then(() => res.json(post));
+    const tagsJSON = JSON.stringify(tags);
+
+    await pool.execute(
+      `insert into post (title, body, tags, user_id) values ("${title}", "${body}", '${tagsJSON}', ${res.locals.user.id});`,
+    );
+
+    const [queryResult]: [Array<any>, any] = await pool.execute(
+      "select id, title, body, tags, user_id from post " +
+        `where title = "${title}" and body = "${body}" and user_id = ${res.locals.user.id} order by id desc;`,
+    );
+    res.json(queryResult[0]);
   } catch (e) {
     res.sendStatus(500);
   }
