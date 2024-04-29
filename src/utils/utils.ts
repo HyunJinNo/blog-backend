@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
+import sanitizeHtml from "sanitize-html";
 
 dotenv.config();
 
@@ -16,4 +17,10 @@ export const generateToken = (id: number, username: string): string => {
     },
   );
   return token;
+};
+
+// html을 없애고 내용이 너무 길면 200자로 제한하는 함수
+export const removeHtmlAndShorten = (body: string) => {
+  const filtered = sanitizeHtml(body, { allowedTags: [] });
+  return filtered.length < 200 ? filtered : `${filtered.slice(0, 200)}...`;
 };

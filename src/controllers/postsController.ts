@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import pool from "../db/db";
 import Post from "../models/Post";
+import { removeHtmlAndShorten } from "../utils/utils";
+import sanitizeHtml from "sanitize-html";
+import sanitizeOption from "../constants/sanitizeOption";
 
 /**
  * ID 검증 미들웨어
@@ -90,14 +93,15 @@ export const write = async (req: Request, res: Response) => {
 
   try {
     const tagsJSON = JSON.stringify(tags);
+    const filteredBody = sanitizeHtml(body, sanitizeOption);
 
     await pool.execute(
-      `insert into post (title, body, tags, user_id) values ("${title}", "${body}", '${tagsJSON}', ${res.locals.user.id});`,
+      `insert into post (title, body, tags, user_id) values ("${title}", "${filteredBody}", '${tagsJSON}', ${res.locals.user.id});`,
     );
 
     const [queryResult]: [Array<any>, any] = await pool.execute(
       "select id, title, body, tags, user_id from post " +
-        `where title = "${title}" and body = "${body}" and user_id = ${res.locals.user.id} order by id desc;`,
+        `where title = "${title}" and body = "${filteredBody}" and user_id = ${res.locals.user.id} order by id desc;`,
     );
     res.json(queryResult[0]);
   } catch (e) {
@@ -133,8 +137,7 @@ export const list = async (req: Request, res: Response) => {
     // 최대 200자까지만 body 조회
     const result = queryResult.map((post: Post) => ({
       ...post,
-      body:
-        post.body.length < 200 ? post.body : `${post.body.slice(0, 200)}...`,
+      body: removeHtmlAndShorten(post.body),
     }));
 
     const [postCount]: [Array<any>, any] = await pool.execute(
@@ -192,10 +195,15 @@ export const update = async (req: Request, res: Response) => {
     );
     const origin: Post = temp[0];
 
+    let filteredBody: string | null = null;
+    if (body !== undefined) {
+      filteredBody = sanitizeHtml(body, sanitizeOption);
+    }
+
     pool
       .execute(
         `update post set title = "${title ?? origin.title}", body = "${
-          body ?? origin.body
+          filteredBody ?? origin.body
         }", tags = '${JSON.stringify(tags ?? origin.tags)}' where id = ${id};`,
       )
       .then(() => res.sendStatus(204)); // No content (성공하기는 했지만 응답할 데이터는 없음.)
