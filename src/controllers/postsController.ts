@@ -143,9 +143,9 @@ export const list = async (req: Request, res: Response) => {
     const [postCount]: [Array<any>, any] = await pool.execute(
       `select count(id) from post;`,
     );
-    const lastPage: number = postCount[0]["count(id)"];
+    const lastPage: number = Math.ceil(postCount[0]["count(id)"] / 10);
 
-    res.setHeader("lastPage", lastPage).json(result);
+    res.setHeader("lastpage", lastPage).json(result);
   } catch (e) {
     res.sendStatus(500);
   }
