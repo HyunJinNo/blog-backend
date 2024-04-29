@@ -1,9 +1,10 @@
-require("dotenv").config();
+import dotenv from "dotenv";
 import express from "express";
 import { router } from "./routes/index";
 import cookieParser from "cookie-parser";
 import jwtMiddleware from "./middlewares/jwtMiddleware";
 
+dotenv.config();
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 

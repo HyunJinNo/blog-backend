@@ -1,5 +1,7 @@
-require("dotenv").config();
+import dotenv from "dotenv";
 import mysql from "mysql2/promise"; // Get the Client.
+
+dotenv.config();
 
 // Create the connection pool. The pool-specific settings are the defaults.
 const pool = mysql.createPool({
