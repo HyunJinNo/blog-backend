@@ -96,12 +96,12 @@ export const write = async (req: Request, res: Response) => {
     const filteredBody = sanitizeHtml(body, sanitizeOption);
 
     await pool.execute(
-      `insert into post (title, body, tags, user_id) values ("${title}", "${filteredBody}", '${tagsJSON}', ${res.locals.user.id});`,
+      `insert into post (title, body, tags, user_id, username) values ("${title}", "${filteredBody}", '${tagsJSON}', ${res.locals.user.id}, "${res.locals.user.username}");`,
     );
 
     const [queryResult]: [Array<any>, any] = await pool.execute(
-      "select id, title, body, tags, user_id from post " +
-        `where title = "${title}" and body = "${filteredBody}" and user_id = ${res.locals.user.id} order by id desc;`,
+      `select * from post where title = "${title}" and body = "${filteredBody}" ` +
+        `and user_id = ${res.locals.user.id} and username = "${res.locals.user.username}" order by id desc;`,
     );
     res.json(queryResult[0]);
   } catch (e) {
